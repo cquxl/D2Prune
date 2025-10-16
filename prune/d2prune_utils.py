@@ -33,6 +33,9 @@ class D2SparseGPT:
             self.y_scaler_col = torch.zeros((self.rows), device=self.dev)
             self.delta_x_scaler_row = torch.zeros((self.columns), device=self.dev)
 
+        if self.args.dsm !=None:
+            self.scaler_row = torch.zeros((self.columns), device=self.dev)
+
         self.nsamples = 0
 
         self.s = self.args.seq_len if self.args.auto_s else self.args.s
@@ -52,6 +55,8 @@ class D2SparseGPT:
         if self.args.d2_sparsegpt:
             self.y_scaler_col *= self.nsamples / (self.nsamples + tmp)
             self.delta_x_scaler_row *= self.nsamples / (self.nsamples + tmp)
+        if self.args.dsm !=None:
+            self.scaler_row *= self.nsamples / (self.nsamples + tmp)
 
         self.nsamples += tmp
         inp = math.sqrt(2 / self.nsamples) * inp.float()
@@ -67,6 +72,9 @@ class D2SparseGPT:
             else:
                 self.y_scaler_col += torch.norm(out.reshape(-1, out.shape[-1]), p=2, dim=0) / self.s # y
                 self.delta_x_scaler_row += torch.norm(inp, p=2, dim=1) / self.s  # x
+
+        if self.args.dsm != None:
+            self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2 / self.nsamples # ||x||^2
 
 
     def cal_s_by_kmeans(self) -> Tensor:
@@ -244,7 +252,7 @@ class D2Wanda:
 
             # # new-->not scaling to sqrt: correct
             ## ywx
-            W_metric += (self.r1) * (self.y_scaler_col.reshape((-1, 1)) ** (1)) * (torch.abs(self.layer.weight.data)) * (self.delta_x_scaler_row.reshape((1, -1)) ** (0))
+            W_metric += (self.r1) * (self.y_scaler_col.reshape((-1, 1)) ** (1)) * (torch.abs(self.layer.weight.data)) * (self.delta_x_scaler_row.reshape((1, -1)) ** (1))
             ## w^2x^2
             W_metric += -(self.r2) * (torch.abs(self.layer.weight.data) ** (2))  * (self.delta_x_scaler_row.reshape((1, -1)) ** (2))  # 768,128
 

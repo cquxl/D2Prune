@@ -69,6 +69,7 @@ class Prune_Args:
         self.parser.add_argument('--r2', type=float, default=self.cfg['r2'], help='Second-order activation bias term coefficient 2, i.e, $\lambda_2$ x^tww^tx')
         self.parser.add_argument('--d2_wanda', action="store_true")
         self.parser.add_argument('--d2_sparsegpt', action="store_true")
+        self.parser.add_argument('--EA', action="store_true", help="Exponential adaptation/adjustment for activations ||X||^R or ||Y||^R, R=[0, 1/2, 1, 2]")
         self.parser.add_argument('--free', action="store_true")
         self.parser.add_argument('--distribute', action="store_true")
         # self.parser.add_argument('--blocksize', type=int, default=self.cfg['blocksize'], help='sparsegpt block')
@@ -77,6 +78,22 @@ class Prune_Args:
                                  default=self.cfg['target_layer_names'],
                                  help='which layer to prune without weights update')
         self.parser.add_argument('--tasks', type=str, default=self.cfg['tasks'], help='zero-shot tasks')
+        self.parser.add_argument('--dsm', type=str, default=None, choices=['owl', 'besa', 'evopress', 'als', 'dsa'],
+                                 help="dynamic layer sparsity method")
+        self.parser.add_argument('--granularity', type=str, default='per-block', choices=['per-block', 'per-layer'],
+                                 help="dynamic layer sparsity method")
+        self.parser.add_argument(
+            "--Lambda",
+            default=0.08,
+            type=float,
+            help="Lambda for owl",
+        )
+        self.parser.add_argument(
+            "--Hyper_m",
+            type=float,
+            default=3,
+            help="Hyper_m for owl",
+        )
 
 
 

@@ -27,6 +27,8 @@ class SparseGPT:
         self.rows = W.shape[0]
         self.columns = W.shape[1]
         self.H = torch.zeros((self.columns, self.columns), device=self.dev)
+        if self.args.dsm !=None:
+            self.scaler_row = torch.zeros((self.columns), device=self.dev)
         self.nsamples = 0
         self.batch_inp = []
         self.batch_out = []
@@ -40,9 +42,13 @@ class SparseGPT:
                 inp = inp.reshape((-1, inp.shape[-1]))
             inp = inp.t()
         self.H *= self.nsamples / (self.nsamples + tmp)
+        if self.args.dsm !=None:
+            self.scaler_row *= self.nsamples / (self.nsamples + tmp)
         self.nsamples += tmp
         inp = math.sqrt(2 / self.nsamples) * inp.float()
-        self.H += inp.matmul(inp.t())
+        self.H += inp.matmul(inp.t()) # xx^t
+        if self.args.dsm !=None:
+            self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2 / self.nsamples # ||x||^2
 
     def fasterprune(
         self, sparsity, prune_n=0, prune_m=0, blocksize=128, percdamp=.01
