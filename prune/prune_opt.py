@@ -1,8 +1,8 @@
 import gc
+import numpy as np
 import time
 import torch
 import torch.nn as nn
-import numpy as np
 from tqdm import trange
 
 from utils import timeit
@@ -99,7 +99,7 @@ class D2Prune_OPT:
             if granularity == 'per-block':
                 self.layer_outlier_ratios = []
                 self.block_sizes = []
-                # self.block_importance = []  # 新增：Block重要性权重（基于注意力头贡献率）
+
                 for name in subset:
                     # W_metric = torch.abs(self.layer.weight.data) * torch.sqrt(self.scaler_row.reshape((1, -1)))
                     if name in self.target_layer_names:
@@ -123,25 +123,25 @@ class D2Prune_OPT:
                         W_metric += -(gpts[name].r2) * (torch.abs(gpts[name].layer.weight.data) ** (2)) * (
                                 gpts[name].delta_x_scaler_row.reshape((1, -1)) ** (2))  # 768,128
                     # SVD
-                    # U, S, VT = torch.linalg.svd(W_metric, full_matrices=False) # WS的奇异值分解
+                    # U, S, VT = torch.linalg.svd(W_metric, full_matrices=False)
                     # self.logger.info(f"{name} W_metric svd S shape {S.shape}")
 
                     # calculate block outlier ratio
                     block_outlier_ratio = self.check_outlier_mean(torch.flatten(W_metric.cpu()),
-                                                                  self.args.Hyper_m)  # why each has the same Hyper_m
+                                                                  self.args.Hyper_m)
                     self.layer_outlier_ratios.append(block_outlier_ratio)
-                    self.block_sizes.append(subset[name].weight.numel())  # 记录参数数量
+                    self.block_sizes.append(subset[name].weight.numel())
                 total_params = sum(self.block_sizes)
                 block_weights = np.array(self.block_sizes) / total_params
                 self.all_blocks_ratio = np.array(self.layer_outlier_ratios)
                 self.all_blocks_ratio = (self.all_blocks_ratio - self.all_blocks_ratio.min()) / (
                             self.all_blocks_ratio.max() - self.all_blocks_ratio.min())
-                # 映射到 [target_sparsity - lambda, target_sparsity + lambda] 范围
+                #  [target_sparsity - lambda, target_sparsity + lambda]
                 target_sparsity = self.args.sparsity_ratio
                 delta = (self.all_blocks_ratio - np.mean(self.all_blocks_ratio)) * self.args.Lambda * 2
-                self.all_blocks_ratio = np.clip(target_sparsity + delta, 0.1, 0.95)  # 限制稀疏度范围
+                self.all_blocks_ratio = np.clip(target_sparsity + delta, 0.1, 0.95)
 
-                # 3. 加权校准：确保层稀疏度严格等于目标
+                # 3. weighted sparsity
                 current_weighted_sparsity = np.sum(self.all_blocks_ratio * block_weights)
                 scale = target_sparsity / current_weighted_sparsity
                 self.all_blocks_ratio = 1 - np.clip(self.all_blocks_ratio * scale, 0.1, 0.95)
@@ -152,14 +152,6 @@ class D2Prune_OPT:
                                  f"Weighted sparsity: {np.sum((1 - self.all_blocks_ratio) * block_weights):.4f}, ")
                 self.logger.info("before layer sparsity compensation", self.layer_outlier_ratios)
 
-                # adjustment block sparsity according to outlier block ratio-->[s-lambda, s+lambda]
-                # self.all_blocks_ratio = np.array(list(self.layer_outlier_ratios.values()))
-                # self.all_blocks_ratio = np.array(self.layer_outlier_ratios)
-                # # [0,2lambda]
-                # self.all_blocks_ratio = (self.all_blocks_ratio - self.all_blocks_ratio.min()) / (
-                #             self.all_blocks_ratio.max() - self.all_blocks_ratio.min()) * self.args.Lambda * 2
-                # self.all_blocks_ratio = self.all_blocks_ratio - np.mean(self.all_blocks_ratio) + (
-                #             1 - self.args.sparsity_ratio)
                 return self.all_blocks_ratio
             elif granularity == 'per-layer':
                 self.layer_wmetric = []
@@ -477,21 +469,12 @@ class Prune_OPT:
 
     @staticmethod
     def compute_sensitivity(S, top_ratio=0.05, mode="clamp"):
-        """
-        根据特征值谱计算敏感度分数
-        Args:
-            S (torch.Tensor): 特征值向量 [d]
-            top_ratio (float): 取前多少比例的特征值能量占比
-            mode (str): 'abs' 或 'clamp'
-        Returns:
-            sensitivity (float)
-        """
         if mode == "abs":
             S = torch.abs(S)
         elif mode == "clamp":
-            S = torch.clamp(S, min=0.0)  # 把负数截断为0
+            S = torch.clamp(S, min=0.0)
 
-        if S.sum() == 0:  # 避免除零
+        if S.sum() == 0:
             return 0.0
 
         S_sorted, _ = torch.sort(S, descending=True)
@@ -515,11 +498,11 @@ class Prune_OPT:
             if granularity == 'per-block':
                 self.layer_outlier_ratios = []
                 self.block_sizes = []
-                self.block_importance = []  # 新增：Block重要性权重（基于注意力头贡献率）
+                self.block_importance = []
                 for name in subset:
                     W_metric = torch.abs(subset[name].weight.data) * torch.sqrt(gpts[name].scaler_row.reshape((1, -1)))
                     # SVD
-                    # U, S, VT = torch.linalg.svd(W_metric, full_matrices=False) # WS的奇异值分解
+                    # U, S, VT = torch.linalg.svd(W_metric, full_matrices=False)
                     # self.logger.info(f"{name} W_metric svd U shape {U.shape}")
                     # self.logger.info(f"{name} W_metric svd S shape {S.shape}")
                     # self.logger.info(f"{name} W_metric svd VT shape {VT.shape}")
@@ -528,23 +511,22 @@ class Prune_OPT:
                     # # calculate block outlier ratio
                     block_outlier_ratio = self.check_outlier_mean(torch.flatten(W_metric.cpu()),
                                                                   self.args.Hyper_m)  # why each has the same Hyper_m
-                    # topk特征值占比
                     # block_outlier_ratio = self.compute_sensitivity(S, top_ratio=0.2, mode="abs")
 
                     # block_outlier_ratio = self.check_outlier_mean(torch.flatten(S.cpu()), self.args.Hyper_m) #
                     self.layer_outlier_ratios.append(block_outlier_ratio)
-                    self.block_sizes.append(subset[name].weight.numel())  # 记录参数数量
+                    self.block_sizes.append(subset[name].weight.numel())
                 total_params = sum(self.block_sizes)
                 block_weights = np.array(self.block_sizes) / total_params
                 self.all_blocks_ratio = np.array(self.layer_outlier_ratios)
                 self.all_blocks_ratio = (self.all_blocks_ratio - self.all_blocks_ratio.min()) / (
                             self.all_blocks_ratio.max() - self.all_blocks_ratio.min())
-                # 映射到 [target_sparsity - lambda, target_sparsity + lambda] 范围
+                #  [target_sparsity - lambda, target_sparsity + lambda]
                 target_sparsity = self.args.sparsity_ratio
                 delta = (self.all_blocks_ratio - np.mean(self.all_blocks_ratio)) * self.args.Lambda * 2
-                self.all_blocks_ratio = np.clip(target_sparsity + delta, 0.1, 0.95)  # 限制稀疏度范围
+                self.all_blocks_ratio = np.clip(target_sparsity + delta, 0.1, 0.95)
 
-                # 3. 加权校准：确保层稀疏度严格等于目标
+                # 3. weighted sparsity
                 current_weighted_sparsity = np.sum(self.all_blocks_ratio * block_weights)
                 scale = target_sparsity / current_weighted_sparsity
                 self.all_blocks_ratio = 1 - np.clip(self.all_blocks_ratio * scale, 0.1, 0.95)
