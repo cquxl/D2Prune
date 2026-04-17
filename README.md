@@ -268,6 +268,16 @@ This project is released under the MIT license. Please see the [LICENSE](https:/
 ## Citation
 
 ```bash
+@article{Xiong_Liu_Ren_Bai_Fang_Zhang_Jiang_Tan_Liu_2026, 
+    title={D2 Prune: Sparsifying Large Language Models via Dual Taylor Expansion and Attention Distribution Awareness}, 
+    volume={40}, url={https://ojs.aaai.org/index.php/AAAI/article/view/39932}, DOI={10.1609/aaai.v40i32.39932},
+    number={32}, 
+    journal={Proceedings of the AAAI Conference on Artificial Intelligence}, 
+    author={Xiong, Lang and Liu, Ning and Ren, Ao and Bai, Yuheng and Fang, Haining and Zhang, Binyan and Jiang, Zhe and Tan, Yujuan and Liu, Duo}, 
+    year={2026}, 
+    month={Mar.}, 
+    pages={27171-27179} 
+}
 @article{frantar-sparsegpt,
   title={{SparseGPT}: Massive Language Models Can Be Accurately Pruned in One-Shot}, 
   author={Elias Frantar and Dan Alistarh},
